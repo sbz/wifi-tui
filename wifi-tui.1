@@ -1,0 +1,581 @@
+.\" wifi-tui.1 - manual page for wifi-tui
+.\" Written in mdoc(7) format for FreeBSD.
+.\"
+.\" Render with:
+.\"   man ./wifi-tui.1
+.\"   mandoc -T utf8 wifi-tui.1 | less
+.\"
+.Dd April 30, 2026
+.Dt WIFISCAN 1
+.Os FreeBSD 14.4
+.\" -------------------------------------------------------------------------
+.Sh NAME
+.Nm wifi-tui
+.Nd interactive ncurses TUI for IEEE 802.11 wireless network scanning
+.\" -------------------------------------------------------------------------
+.Sh SYNOPSIS
+.Nm
+.Op Fl i Ar interface
+.Op Fl r Ar seconds
+.Op Fl s Ar column
+.Ar interface
+.\" -------------------------------------------------------------------------
+.Sh DESCRIPTION
+.Nm
+is a terminal-based wireless LAN scanner for
+.Fx 14.4 .
+It uses the
+.Xr net80211 4
+.Dv SIOCG80211
+ioctl interface to trigger active scans and read cached scan results,
+presenting them in a live-updating
+.Xr ncurses 3
+TUI.
+.Pp
+The display has two views:
+.Bl -tag -width ".Em Detail pane"
+.It Em List view
+A scrollable table of all visible access points, updated automatically
+every
+.Ar seconds
+seconds.
+Columns show SSID, BSSID, channel, frequency, RSSI, security mode,
+and beacon interval.
+.It Em Detail pane
+A full-screen information panel for the selected access point, opened by
+pressing
+.Sy Enter .
+It shows identity, radio, 802.11 protocol, and security attributes,
+a live RSSI bar, and an ASCII bar chart of historical signal strength.
+.El
+.Pp
+.Nm
+must be run as
+.Sy root
+or with sufficient privilege to perform
+.Xr ioctl 2
+calls on the 802.11 interface.
+.\" -------------------------------------------------------------------------
+.Sh OPTIONS
+.Bl -tag -width "-r seconds"
+.It Fl i Ar interface
+Wireless interface to scan
+.Pq e.g. Ar wlan0 .
+Equivalent to supplying
+.Ar interface
+as a bare positional argument.
+.It Fl r Ar seconds
+Auto-refresh interval in seconds.
+The scan is re-triggered and the display updated this often.
+Minimum value is 1.
+Default is
+.Sy 3 .
+.It Fl s Ar column
+Initial sort column index
+.Pq Sy 0 No \(en Sy 6 .
+See
+.Sx SORT COLUMNS
+below.
+Default is
+.Sy 4
+.Pq RSSI, descending .
+.It Fl h
+Print a short usage summary and exit.
+.El
+.\" -------------------------------------------------------------------------
+.Sh SORT COLUMNS
+.Bl -column "Index" "Header" "Description" -compact
+.It Sy Index Ta Sy Header Ta Sy Description
+.It 0 Ta SSID Ta Network name (lexicographic)
+.It 1 Ta BSSID Ta Access point MAC address
+.It 2 Ta CH Ta 802.11 channel number
+.It 3 Ta FREQ Ta Channel frequency in MHz
+.It 4 Ta RSSI Ta Received signal strength (default)
+.It 5 Ta SEC Ta Security mode (Open < WPA < WPA2)
+.It 6 Ta BCN Ta Beacon interval in TUs
+.El
+.Pp
+The active sort column is indicated by a
+.Sq v
+.Pq descending
+or
+.Sq ^
+.Pq ascending
+suffix in the column header.
+.\" -------------------------------------------------------------------------
+.Sh KEY BINDINGS
+.Ss List View
+.Bl -tag -width "PgUp / PgDn"
+.It Sy Enter
+Open the detail pane for the currently selected access point.
+.It Sy q , Q , Esc
+Quit
+.Nm .
+.It Sy r
+Force an immediate rescan without waiting for the refresh timer.
+.It Sy Up , Down
+Move the selection one row up or down.
+.It Sy PgUp , PgDn
+Move the selection ten rows up or down.
+.It Sy Home , End
+Jump to the first or last access point in the list.
+.It Sy 0 No \(en Sy 6
+Sort by the corresponding column index immediately.
+.It Sy s
+Advance the sort column to the next column
+.Pq wraps around .
+.It Sy S
+Retreat the sort column to the previous column
+.Pq wraps around .
+.It Sy R
+Toggle between ascending and descending sort order.
+.It Sy ?
+Toggle the key-binding help bar at the bottom of the screen.
+.El
+.Ss Detail Pane
+.Bl -tag -width "Esc / q / Enter"
+.It Sy Esc , q , Q , Enter
+Close the detail pane and return to the list view.
+.It Sy r
+Force an immediate rescan.
+Useful to accumulate more samples in the signal history graph.
+.El
+.\" -------------------------------------------------------------------------
+.Sh DETAIL PANE
+The detail pane is divided into four sections.
+.Ss Identity
+.Bl -tag -width "Extensions"
+.It Sy SSID
+Service Set Identifier.
+Displays
+.Em <hidden>
+for networks that suppress SSID broadcast.
+.It Sy BSSID
+Basic Service Set Identifier; the MAC address of the access point radio.
+.It Sy Band
+Radio band:
+.Em 2.4\ GHz ,
+.Em 5\ GHz ,
+or
+.Em 6\ GHz (Wi-Fi\ 6E) .
+.It Sy PHY Mode
+Protocol generation detected from Information Elements:
+.Em 802.11b/g ,
+.Em 802.11a ,
+.Em 802.11n\ (Wi-Fi\ 4) ,
+.Em 802.11ac\ (Wi-Fi\ 5) ,
+or
+.Em 802.11ax\ (Wi-Fi\ 6/6E) .
+.It Sy Channel
+802.11 channel number derived from the reported frequency,
+followed by the frequency in MHz.
+.It Sy Extensions
+PHY capabilities detected from beacon Information Elements:
+.Em HT(n)
+for 802.11n High-Throughput,
+.Em VHT(ac)
+for 802.11ac Very High-Throughput,
+.Em HE(ax)
+for 802.11ax High-Efficiency.
+.El
+.Ss Signal
+.Bl -tag -width "Signal History"
+.It Sy RSSI
+Received Signal Strength Indicator in dBm, colour-coded:
+.Bl -bullet -compact
+.It
+.Em Green :
+.No >= \(mi60\ dBm
+.Pq strong
+.It
+.Em Yellow :
+\(mi61 to \(mi75\ dBm
+.Pq fair
+.It
+.Em Red :
+.No < \(mi75\ dBm
+.Pq weak
+.El
+An inline ASCII bar
+.Ql [ ###....... ]
+visualises the value on a \(mi100 to \(mi30\ dBm scale.
+.It Sy Noise Floor
+Measured noise floor in dBm.
+.It Sy SNR
+Signal-to-Noise Ratio in dB
+.Pq RSSI \(mi Noise floor .
+Annotated as
+.Em good
+.Pq >= 25\ dB ,
+.Em fair
+.Pq >= 15\ dB ,
+or
+.Em poor
+.Pq < 15\ dB .
+.It Sy Signal History
+A vertical bar chart of the last 64 RSSI samples, one sample per scan
+cycle.
+The Y-axis runs from \(mi100\ dBm
+.Pq bottom
+to \(mi30\ dBm
+.Pq top .
+Each bar is drawn with
+.Sq |
+characters and capped with
+.Sq ^
+at the peak.
+Bars are colour-coded with the same green/yellow/red scale as RSSI.
+Time increases left to right; the newest sample is always at the right
+edge.
+.El
+.Ss 802.11
+.Bl -tag -width "Beacon Interval"
+.It Sy Beacon Interval
+Interval between beacon frames in TUs
+.Pq Time Units; 1\ TU\ =\ 1.024\ ms ,
+followed by the approximate value in milliseconds.
+.It Sy ERP Info
+Value of the Extended Rate PHY information element
+.Pq raw hex byte .
+A non-zero value indicates that legacy
+.Pq 802.11b
+stations are present in the BSS.
+.It Sy Capabilities
+Raw capability information field in hex, followed by decoded flags:
+.Em ESS
+.Pq infrastructure mode ,
+.Em IBSS
+.Pq ad-hoc mode ,
+.Em Privacy
+.Pq encryption required ,
+.Em ShortPreamble ,
+.Em ShortSlot .
+.It Sy Supported Rates
+Basic rates are prefixed with
+.Sq * .
+Values are in Mbps.
+Long rate lists are wrapped across multiple lines.
+.El
+.Ss Security
+.Bl -tag -width "Short preamble"
+.It Sy Mode
+Highest security mode detected, in descending order of strength:
+.Bl -bullet -compact
+.It
+.Em WPA2/RSN (802.11i)
+\(em RSN Information Element found
+.It
+.Em WPA (TKIP)
+\(em WPA vendor IE found
+.It
+.Em WEP (legacy)
+\(em Privacy capability bit set but no WPA/RSN IE
+.It
+.Em Open (no encryption)
+\(em no encryption indicators found
+.El
+Encrypted modes are displayed in green; open in red.
+.It Sy WPA IE
+Whether a WPA vendor-specific Information Element
+.Pq OUI 00:50:F2, type 0x01
+was found in the beacon.
+.It Sy RSN IE
+Whether an RSN
+.Pq Robust Security Network
+Information Element
+.Pq element ID 48
+was found in the beacon.
+.It Sy Privacy bit
+State of the Privacy flag in the Capability Information field.
+.It Sy Short preamble
+State of the Short Preamble capability flag.
+.It Sy Short slot
+State of the Short Slot Time capability flag.
+.El
+.\" -------------------------------------------------------------------------
+.Sh DISPLAY COLOURS
+.Nm
+uses terminal colours when the
+.Ev TERM
+environment variable indicates a colour-capable terminal.
+.Bl -tag -width "Yellow"
+.It Sy Green
+Strong RSSI
+.Pq >= \(mi60\ dBm ,
+encrypted security modes, graph bars for strong signal.
+.It Sy Yellow
+Medium RSSI
+.Pq \(mi61 to \(mi75\ dBm ,
+countdown timer in the status bar.
+.It Sy Red
+Weak RSSI
+.Pq < \(mi75\ dBm ,
+open or unencrypted networks.
+.It Sy Cyan
+Column headers, box-drawing borders, field labels, status bar.
+.It Sy Blue
+Title bar, section header bars in the detail pane.
+.It Sy White
+Currently selected row, value fields in the detail pane.
+.El
+.\" -------------------------------------------------------------------------
+.Sh IMPLEMENTATION NOTES
+.Ss FreeBSD 14.4 ioctl constraints
+.Bl -bullet
+.It
+The
+.Va i_len
+field of
+.Vt struct ieee80211req
+is
+.Vt int16_t
+.Pq signed 16-bit .
+The scan-result buffer is therefore capped at 32767 bytes
+.Pq Dv INT16_MAX ,
+which accommodates approximately 100 access points.
+A buffer larger than this causes
+.Va i_len
+to wrap to a negative value, and the kernel returns
+.Er EFAULT
+.Pq \(dqBad address\(dq .
+.It
+Active scans must be triggered with
+.Dv SIOCG80211
+and
+.Dv IEEE80211_IOC_SCAN_REQ .
+Using
+.Dv SIOCS80211
+returns
+.Er EINVAL
+on FreeBSD 14.
+.It
+The struct fields
+.Va isr_chan
+and
+.Va isr_beacon_int
+do not exist in FreeBSD 14.
+The channel number is derived from
+.Va isr_freq
+using:
+.Bl -bullet -compact
+.It
+2.4\ GHz:
+.Li (freq \- 2407) / 5
+.It
+5\ GHz:
+.Li freq / 5 \- 1000
+.It
+6\ GHz:
+.Li (freq \- 5950) / 5 + 1
+.El
+The beacon interval is read from
+.Va isr_intval .
+.It
+Variable-length data
+.Pq SSID, Mesh ID, Information Elements
+begins at
+.Va isr_ie_off
+bytes from the start of
+.Vt struct ieee80211req_scan_result ,
+not at
+.Fn sizeof "struct ieee80211req_scan_result" .
+.El
+.Ss Signal history
+Each scan cycle appends one RSSI sample per visible AP into a ring
+buffer of
+.Dv WIFI_RSSI_HISTORY
+.Pq 64
+entries.
+Older samples are overwritten once the buffer is full.
+The graph in the detail pane displays the most recent
+.Em min(sample_count, graph_width)
+samples.
+.\" -------------------------------------------------------------------------
+.Sh ENVIRONMENT
+.Bl -tag -width "TERM"
+.It Ev TERM
+Used by
+.Xr ncurses 3
+to determine colour and capability support.
+A value such as
+.Dq xterm-256color
+or
+.Dq screen-256color
+is recommended for full colour rendering.
+.El
+.\" -------------------------------------------------------------------------
+.Sh FILES
+.Bl -tag -width "wifi-tui.c"
+.It Pa wifi.h
+Shared type definitions
+.Pq Vt wifi_ap_t , Vt wifi_state_t ,
+constants, and scan API declarations.
+.It Pa wifi.c
+.Xr net80211 4
+ioctl implementation: socket creation, scan trigger, result fetch,
+IE parsing
+.Pq RSN, WPA, HT, VHT, HE .
+.It Pa tui.h
+TUI context structure
+.Pq Vt tui_ctx_t ,
+sort column constants, action enum, and public API declarations.
+.It Pa tui.c
+.Xr ncurses 3
+rendering: list view, detail pane, inline RSSI bar, ASCII signal
+history graph, keyboard input handling.
+.It Pa wifi-tui.c
+Entry point: argument parsing, event loop, SIGWINCH handling.
+.It Pa Makefile
+BSD
+.Xr make 1
+build file; uses
+.Pa bsd.prog.mk
+when available, with explicit fallback rules otherwise.
+.El
+.\" -------------------------------------------------------------------------
+.Sh EXAMPLES
+Scan
+.Em wlan0
+with the default 3-second refresh interval:
+.Pp
+.Dl sudo wifi-tui wlan0
+.Pp
+Scan with a 10-second refresh, initial sort by channel:
+.Pp
+.Dl sudo wifi-tui -i wlan0 -r 10 -s 2
+.Pp
+Build from source and run:
+.Bd -literal -offset indent
+make
+sudo ./wifi-tui wlan0
+.Ed
+.Pp
+Install to
+.Pa /usr/local/bin :
+.Pp
+.Dl sudo make install
+.Pp
+Install to a custom prefix:
+.Pp
+.Dl sudo make PREFIX=/opt install
+.Pp
+Verify the manpage renders correctly before installing:
+.Pp
+.Dl mandoc -T utf8 wifi-tui.1 | less
+.\" -------------------------------------------------------------------------
+.Sh DIAGNOSTICS
+.Bl -diag
+.It "scan failed -- check interface/privileges"
+The
+.Dv SIOCG80211
+ioctl returned an error.
+Ensure the interface exists
+.Pq Xr ifconfig 8 ,
+is brought up with
+.Ql ifconfig Ar interface up ,
+and that
+.Nm
+is run as root.
+.It "No scan results for <ifname>. Try: ifconfig <ifname> scan"
+The kernel scan cache is empty.
+Populate it with:
+.Bd -literal -offset indent
+ifconfig wlan0 up
+ifconfig wlan0 scan
+.Ed
+.It "SIOCG80211 (scan results): Bad address"
+The buffer length overflowed
+.Vt int16_t .
+Verify that
+.Dv WIFI_MAX_IELEN
+in
+.Pa wifi.h
+is no larger than 32767.
+.It "SIOCG80211 (scan req): Invalid argument"
+The scan-request struct flags or ioctl number are wrong.
+Ensure the trigger uses
+.Dv SIOCG80211
+.Pq not Dv SIOCS80211
+with
+.Dv IEEE80211_IOC_SCAN_ACTIVE | IEEE80211_IOC_SCAN_ONCE | IEEE80211_IOC_SCAN_NOPICK
+and
+.Va sr_duration
+set to
+.Dv IEEE80211_IOC_SCAN_FOREVER .
+.El
+.\" -------------------------------------------------------------------------
+.Sh SEE ALSO
+.Xr ifconfig 8 ,
+.Xr wpa_supplicant 8 ,
+.Xr net80211 4 ,
+.Xr ncurses 3 ,
+.Xr ioctl 2 ,
+.Xr make 1 ,
+.Xr mandoc 1
+.\" -------------------------------------------------------------------------
+.Sh STANDARDS
+.Nm
+decodes fields defined in:
+.Bl -bullet -compact
+.It
+IEEE Std 802.11-2020
+.Pq Information Elements, Capability Information, ERP, HT/VHT/HE Capabilities
+.It
+Wi-Fi Alliance WPA Information Element specification
+.Pq OUI 00:50:F2, type 0x01
+.El
+.\" -------------------------------------------------------------------------
+.Sh AUTHORS
+.Nm
+was written as a demonstration of direct
+.Xr net80211 4
+ioctl usage from FreeBSD 14.4 userland.
+.\" -------------------------------------------------------------------------
+.Sh CAVEATS
+.Bl -bullet
+.It
+The scan-result buffer is limited to 32767 bytes by the
+.Vt int16_t
+.Va i_len
+field.
+In very dense RF environments this may silently truncate the AP list.
+.Nm
+prints a warning to
+.Em stderr
+when the buffer fills completely.
+.It
+RSSI and noise values are reported in units of 0.5\ dBm by the
+FreeBSD net80211 stack and are displayed as integer dBm values
+.Pq floor of the true value .
+.It
+PHY mode detection
+.Pq HT/VHT/HE
+relies on Information Elements present in beacon frames.
+Some access points omit optional IEs; the reported mode may therefore
+be less specific than the actual hardware capability.
+.It
+.Nm
+performs passive observation only.
+It does not associate with, authenticate to, or transmit on any network.
+.El
+.\" -------------------------------------------------------------------------
+.Sh BUGS
+.Bl -bullet
+.It
+The 6\ GHz band
+.Pq Wi-Fi\ 6E
+channel calculation uses a simplified formula and may be incorrect
+for all regulatory channel plans outside the standard 5.925\(en7.125\ GHz range.
+.It
+Hidden SSIDs are displayed as
+.Em <hidden>
+and cannot be resolved by
+.Nm
+without a directed active probe to the specific BSSID, which is not
+currently implemented.
+.It
+The signal history graph requires a minimum terminal height of
+approximately 30 rows to render all four detail-pane sections without
+truncation.
+On shorter terminals, sections near the bottom are silently omitted.
+.El
